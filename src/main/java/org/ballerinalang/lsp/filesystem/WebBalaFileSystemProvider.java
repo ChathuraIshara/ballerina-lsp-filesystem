@@ -2,7 +2,9 @@ package org.ballerinalang.lsp.filesystem;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.DirectoryStream.Filter;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -19,7 +21,7 @@ public class WebBalaFileSystemProvider extends FileSystemProvider {
         this.baseDir = Paths.get(System.getProperty("user.dir"));
     }
     public WebBalaFileSystemProvider(Path tempDir) {
-        this.baseDir = baseDir;
+        this.baseDir = tempDir;
     }
 
     @Override
@@ -74,10 +76,37 @@ public class WebBalaFileSystemProvider extends FileSystemProvider {
         throw new UnsupportedOperationException("Unimplemented method 'getFileSystem'");
     }
 
-    @Override
-    public Path getPath(URI uri) {
-        
+   @Override
+public Path getPath(URI uri) {
+    // 1. Verify the URI scheme matches our provider
+    if (!uri.getScheme().equalsIgnoreCase(this.getScheme())) {
+        throw new IllegalArgumentException("URI scheme must be '" + this.getScheme() + "'");
     }
+
+    // 2. Handle null/empty paths (return root)
+    String uriPath = uri.getPath();
+    if (uriPath == null || uriPath.isEmpty()) {
+        return this.baseDir;
+    }
+
+    // 3. Decode URL-encoded characters (%20 -> space, etc.)
+    String decodedPath = URLDecoder.decode(uriPath, StandardCharsets.UTF_8);
+
+    // 4. Remove leading slash if present
+    if (decodedPath.startsWith("/")) {
+        decodedPath = decodedPath.substring(1);
+    }
+
+    // 5. Combine with base directory and normalize
+    Path resolvedPath = this.baseDir.resolve(decodedPath).normalize();
+
+    // 6. Security check: Prevent directory traversal attacks
+    if (!resolvedPath.startsWith(this.baseDir)) {
+        throw new SecurityException("Attempt to access path outside base directory");
+    }
+
+    return resolvedPath;
+}
 
     @Override
     public boolean isHidden(Path path) throws IOException {
