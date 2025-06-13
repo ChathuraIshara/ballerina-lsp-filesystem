@@ -11,6 +11,18 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 
 public class WebBalaPath implements Path {
+    private final WebBalaFileSystem fileSystem;
+    private final String path;
+
+    public WebBalaPath(WebBalaFileSystem fileSystem, String path) {
+        this.fileSystem = fileSystem;
+        this.path = path;
+    }
+
+    @Override
+    public String toString() {
+        return path; // or however you store the path string internally
+    }
 
     @Override
     public int compareTo(Path other) {

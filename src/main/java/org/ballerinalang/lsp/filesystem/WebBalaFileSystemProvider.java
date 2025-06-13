@@ -11,17 +11,23 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.spi.FileSystemProvider;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 public class WebBalaFileSystemProvider extends FileSystemProvider {
-     private Path baseDir; 
+    private final Map<String, FileSystem> fileSystems = new HashMap<>();
+
+     public Path baseDir; 
      public WebBalaFileSystemProvider() {
         // Can initialize with default values
         this.baseDir = Paths.get(System.getProperty("user.dir"));
     }
     public WebBalaFileSystemProvider(Path tempDir) {
         this.baseDir = tempDir;
+    }
+    public Path getBaseDir() {
+        return this.baseDir;
     }
 
     @Override
@@ -31,8 +37,12 @@ public class WebBalaFileSystemProvider extends FileSystemProvider {
 
     @Override
     public FileSystem newFileSystem(URI uri, Map<String, ?> env) throws IOException {
-        return new WebBalaFileSystem(this);
-    }
+    WebBalaFileSystem fs = new WebBalaFileSystem(this);
+    fileSystems.put(uri.getScheme(), fs);
+    System.out.println("New file system created for scheme: " + uri.getScheme());
+    System.out.println("registered file system: " + fileSystems);
+    return fs;
+}
 
     @Override
     public void checkAccess(Path path, AccessMode... modes) throws IOException {
@@ -72,9 +82,12 @@ public class WebBalaFileSystemProvider extends FileSystemProvider {
 
     @Override
     public FileSystem getFileSystem(URI uri) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getFileSystem'");
+    FileSystem fs = fileSystems.get(uri.getScheme());
+    if (fs == null) {
+        throw new FileSystemNotFoundException("No filesystem found for URI: " + uri);
     }
+    return fs;
+}
 
    @Override
 public Path getPath(URI uri) {
@@ -83,29 +96,25 @@ public Path getPath(URI uri) {
         throw new IllegalArgumentException("URI scheme must be '" + this.getScheme() + "'");
     }
 
-    // 2. Handle null/empty paths (return root)
+    // 2. Get the FileSystem for this scheme
+    FileSystem fs = getFileSystem(uri);
+
+    // 3. Handle null/empty paths (return root)
     String uriPath = uri.getPath();
-    if (uriPath == null || uriPath.isEmpty()) {
-        return this.baseDir;
+    if (uriPath == null || uriPath.isEmpty() || uriPath.equals("/")) {
+        return new WebBalaPath((WebBalaFileSystem) fs, "/");
     }
 
-    // 3. Decode URL-encoded characters (%20 -> space, etc.)
+    // 4. Decode URL-encoded characters
     String decodedPath = URLDecoder.decode(uriPath, StandardCharsets.UTF_8);
 
-    // 4. Remove leading slash if present
+    // 5. Remove leading slash if present
     if (decodedPath.startsWith("/")) {
         decodedPath = decodedPath.substring(1);
     }
 
-    // 5. Combine with base directory and normalize
-    Path resolvedPath = this.baseDir.resolve(decodedPath).normalize();
-
-    // 6. Security check: Prevent directory traversal attacks
-    if (!resolvedPath.startsWith(this.baseDir)) {
-        throw new SecurityException("Attempt to access path outside base directory");
-    }
-
-    return resolvedPath;
+    // 6. Return a WebBalaPath representing the virtual path
+    return new WebBalaPath((WebBalaFileSystem) fs, decodedPath);
 }
 
     @Override

@@ -44,8 +44,7 @@ public class WebBalaFileSystem extends FileSystem {
 
     @Override
     public Iterable<Path> getRootDirectories() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getRootDirectories'");
+        return java.util.Collections.singletonList(new WebBalaPath(this, "/"));
     }
 
     @Override
@@ -84,5 +83,4 @@ public class WebBalaFileSystem extends FileSystem {
         throw new UnsupportedOperationException("Unimplemented method 'supportedFileAttributeViews'");
     }
 
-    // Implement other required methods
 }
