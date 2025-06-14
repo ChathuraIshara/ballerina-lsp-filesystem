@@ -4,10 +4,13 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.UserPrincipalLookupService;
 import java.nio.file.spi.FileSystemProvider;
+import java.util.Collections;
 import java.util.Set;
 
 public class WebBalaFileSystem extends FileSystem {
     private final WebBalaFileSystemProvider provider;
+    private final boolean readOnly = false;
+    private boolean open = true;
 
     public WebBalaFileSystem(WebBalaFileSystemProvider provider) {
         this.provider = provider;
@@ -20,20 +23,21 @@ public class WebBalaFileSystem extends FileSystem {
 
     @Override
     public void close() throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'close'");
+        open = false;
     }
 
     @Override
     public Iterable<FileStore> getFileStores() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getFileStores'");
+        return Collections.emptyList();
     }
 
     @Override
     public Path getPath(String arg0, String... arg1) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getPath'");
+        String joined = arg0;
+        if (arg1 != null && arg1.length > 0) {
+            joined = String.join(getSeparator(), arg0, String.join(getSeparator(), arg1));
+        }
+        return new WebBalaPath(this, joined);
     }
 
     @Override
@@ -49,8 +53,7 @@ public class WebBalaFileSystem extends FileSystem {
 
     @Override
     public String getSeparator() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getSeparator'");
+        return "/";
     }
 
     @Override
@@ -61,14 +64,12 @@ public class WebBalaFileSystem extends FileSystem {
 
     @Override
     public boolean isOpen() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'isOpen'");
+        return open;
     }
 
     @Override
     public boolean isReadOnly() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'isReadOnly'");
+        return readOnly;
     }
 
     @Override
@@ -79,8 +80,7 @@ public class WebBalaFileSystem extends FileSystem {
 
     @Override
     public Set<String> supportedFileAttributeViews() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'supportedFileAttributeViews'");
+        return Collections.singleton("basic");
     }
 
 }

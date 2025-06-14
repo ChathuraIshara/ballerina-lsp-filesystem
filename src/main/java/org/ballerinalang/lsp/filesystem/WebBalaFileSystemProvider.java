@@ -16,16 +16,18 @@ import java.util.Map;
 import java.util.Set;
 
 public class WebBalaFileSystemProvider extends FileSystemProvider {
-    private final Map<String, FileSystem> fileSystems = new HashMap<>();
+    private final Map<String, WebBalaFileSystem> fileSystems = new HashMap<>();
+    public Path baseDir;
 
-     public Path baseDir; 
-     public WebBalaFileSystemProvider() {
+    public WebBalaFileSystemProvider() {
         // Can initialize with default values
         this.baseDir = Paths.get(System.getProperty("user.dir"));
     }
+
     public WebBalaFileSystemProvider(Path tempDir) {
         this.baseDir = tempDir;
     }
+
     public Path getBaseDir() {
         return this.baseDir;
     }
@@ -37,17 +39,45 @@ public class WebBalaFileSystemProvider extends FileSystemProvider {
 
     @Override
     public FileSystem newFileSystem(URI uri, Map<String, ?> env) throws IOException {
-    WebBalaFileSystem fs = new WebBalaFileSystem(this);
-    fileSystems.put(uri.getScheme(), fs);
-    System.out.println("New file system created for scheme: " + uri.getScheme());
-    System.out.println("registered file system: " + fileSystems);
-    return fs;
-}
+        WebBalaFileSystem fs = new WebBalaFileSystem(this);
+        fileSystems.put(uri.getScheme(), fs);
+        System.out.println("New file system created for scheme: " + uri.getScheme());
+        System.out.println("registered file system: " + fileSystems);
+        return fs;
+    }
 
     @Override
     public void checkAccess(Path path, AccessMode... modes) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'checkAccess'");
+        String virtualPathStr = path.toString();
+        if (virtualPathStr.startsWith("/")) {
+            virtualPathStr = virtualPathStr.substring(1);
+        }
+        Path realPath = baseDir.resolve(virtualPathStr).normalize();
+        if (!realPath.startsWith(baseDir)) {
+            throw new SecurityException("Attempt to access path outside base directory");
+        }
+        if (!Files.exists(realPath)) {
+            throw new NoSuchFileException(realPath.toString());
+        }
+        for (AccessMode mode : modes) {
+            switch (mode) {
+                case READ:
+                    if (!Files.isReadable(realPath)) {
+                        throw new AccessDeniedException("Read access denied: " + realPath);
+                    }
+                    break;
+                case WRITE:
+                    if (!Files.isWritable(realPath)) {
+                        throw new AccessDeniedException("Write access denied: " + realPath);
+                    }
+                    break;
+                case EXECUTE:
+                    if (!Files.isExecutable(realPath)) {
+                        throw new AccessDeniedException("Execute access denied: " + realPath);
+                    }
+                    break;
+            }
+        }
     }
 
     @Override
@@ -58,14 +88,35 @@ public class WebBalaFileSystemProvider extends FileSystemProvider {
 
     @Override
     public void createDirectory(Path dir, FileAttribute<?>... attrs) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'createDirectory'");
+        // Convert the virtual path to a real path under baseDir
+        String virtualPathStr = dir.toString();
+        if (virtualPathStr.startsWith("/")) {
+            virtualPathStr = virtualPathStr.substring(1);
+        }
+        Path realPath = baseDir.resolve(virtualPathStr).normalize();
+        System.out.println("Creating directory at real path: " + realPath);
+        System.out.println("Base directory: " + baseDir);
+
+        // Security: Prevent directory traversal outside baseDir
+        if (!realPath.startsWith(baseDir)) {
+            throw new SecurityException("Attempt to create directory outside base directory");
+        }
+
+        // Create the directory
+        Files.createDirectories(realPath, attrs);
     }
 
     @Override
     public void delete(Path path) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'delete'");
+        String virtualPathStr = path.toString();
+        if (virtualPathStr.startsWith("/")) {
+            virtualPathStr = virtualPathStr.substring(1);
+        }
+        Path realPath = baseDir.resolve(virtualPathStr).normalize();
+        if (!realPath.startsWith(baseDir)) {
+            throw new SecurityException("Attempt to delete outside base directory");
+        }
+        Files.delete(realPath);
     }
 
     @Override
@@ -82,40 +133,40 @@ public class WebBalaFileSystemProvider extends FileSystemProvider {
 
     @Override
     public FileSystem getFileSystem(URI uri) {
-    FileSystem fs = fileSystems.get(uri.getScheme());
-    if (fs == null) {
-        throw new FileSystemNotFoundException("No filesystem found for URI: " + uri);
-    }
-    return fs;
-}
-
-   @Override
-public Path getPath(URI uri) {
-    // 1. Verify the URI scheme matches our provider
-    if (!uri.getScheme().equalsIgnoreCase(this.getScheme())) {
-        throw new IllegalArgumentException("URI scheme must be '" + this.getScheme() + "'");
+        FileSystem fs = fileSystems.get(uri.getScheme());
+        if (fs == null) {
+            throw new FileSystemNotFoundException("No filesystem found for URI: " + uri);
+        }
+        return fs;
     }
 
-    // 2. Get the FileSystem for this scheme
-    FileSystem fs = getFileSystem(uri);
+    @Override
+    public Path getPath(URI uri) {
+        // 1. Verify the URI scheme matches our provider
+        if (!uri.getScheme().equalsIgnoreCase(this.getScheme())) {
+            throw new IllegalArgumentException("URI scheme must be '" + this.getScheme() + "'");
+        }
 
-    // 3. Handle null/empty paths (return root)
-    String uriPath = uri.getPath();
-    if (uriPath == null || uriPath.isEmpty() || uriPath.equals("/")) {
-        return new WebBalaPath((WebBalaFileSystem) fs, "/");
+        // 2. Get the FileSystem for this scheme
+        FileSystem fs = getFileSystem(uri);
+
+        // 3. Handle null/empty paths (return root)
+        String uriPath = uri.getPath();
+        if (uriPath == null || uriPath.isEmpty() || uriPath.equals("/")) {
+            return new WebBalaPath((WebBalaFileSystem) fs, "/");
+        }
+
+        // 4. Decode URL-encoded characters
+        String decodedPath = URLDecoder.decode(uriPath, StandardCharsets.UTF_8);
+
+        // 5. Remove leading slash if present
+        if (decodedPath.startsWith("/")) {
+            decodedPath = decodedPath.substring(1);
+        }
+
+        // 6. Return a WebBalaPath representing the virtual path
+        return new WebBalaPath((WebBalaFileSystem) fs, decodedPath);
     }
-
-    // 4. Decode URL-encoded characters
-    String decodedPath = URLDecoder.decode(uriPath, StandardCharsets.UTF_8);
-
-    // 5. Remove leading slash if present
-    if (decodedPath.startsWith("/")) {
-        decodedPath = decodedPath.substring(1);
-    }
-
-    // 6. Return a WebBalaPath representing the virtual path
-    return new WebBalaPath((WebBalaFileSystem) fs, decodedPath);
-}
 
     @Override
     public boolean isHidden(Path path) throws IOException {
@@ -138,8 +189,16 @@ public Path getPath(URI uri) {
     @Override
     public SeekableByteChannel newByteChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs)
             throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'newByteChannel'");
+        // Convert the virtual path to a real path under baseDir
+        String virtualPathStr = path.toString();
+        if (virtualPathStr.startsWith("/")) {
+            virtualPathStr = virtualPathStr.substring(1);
+        }
+        Path realPath = baseDir.resolve(virtualPathStr).normalize();
+        if (!realPath.startsWith(baseDir)) {
+            throw new SecurityException("Attempt to access path outside base directory");
+        }
+        return Files.newByteChannel(realPath, options, attrs);
     }
 
     @Override
@@ -151,8 +210,15 @@ public Path getPath(URI uri) {
     @Override
     public <A extends BasicFileAttributes> A readAttributes(Path path, Class<A> type, LinkOption... options)
             throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'readAttributes'");
+        String virtualPathStr = path.toString();
+        if (virtualPathStr.startsWith("/")) {
+            virtualPathStr = virtualPathStr.substring(1);
+        }
+        Path realPath = baseDir.resolve(virtualPathStr).normalize();
+        if (!realPath.startsWith(baseDir)) {
+            throw new SecurityException("Attempt to access path outside base directory");
+        }
+        return Files.readAttributes(realPath, type, options);
     }
 
     @Override

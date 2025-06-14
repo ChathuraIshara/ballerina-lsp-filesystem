@@ -1,3 +1,4 @@
 org/ballerinalang/lsp/filesystem/WebBalaPath.class
 org/ballerinalang/lsp/filesystem/WebBalaFileSystemProvider.class
+org/ballerinalang/lsp/filesystem/WebBalaFileSystemProvider$1.class
 org/ballerinalang/lsp/filesystem/WebBalaFileSystem.class

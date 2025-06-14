@@ -12,27 +12,22 @@ public class FileSystemTest {
         ServiceLoader<FileSystemProvider> loader = ServiceLoader.load(FileSystemProvider.class);
         loader.forEach(provider -> System.out.println("Found provider: " + provider.getClass()));
 
-        // 1. Create a test directory structure
-        // Path tempDir = Files.createTempDirectory("web-bala-test");
-        // System.out.println("Temporary directory created: " + tempDir);
-        // Files.createDirectories(tempDir.resolve("src"));
-        // Files.writeString(tempDir.resolve("src/test.bala"), "test content");
-
         // 2. Register your file system
         FileSystem fs = FileSystems.newFileSystem(URI.create("web-bala:///"), Map.of());
-
         // 2. Get the provider from the file system
         FileSystemProvider provider = fs.provider();
-        // System.out.println("Mapped web-bala:/// to real path: " +provider. );
 
-        // 3. Test basic operations
-         testPathResolution(provider);
-        // testFileOperations();
-        // testWebBalaUriToFileCreation(provider);
-        // testUpdateExistingWebBalaFile(provider);
-        //testRootDirectories(provider);
+        testWebBalaPathOperations(provider);
 
         System.out.println("All tests passed!");
+    }
+
+    private static void testGetPathOfProvider(FileSystemProvider provider) throws Exception {
+        URI uri = URI.create("web-bala:///foo/bar.txt");
+        System.out.println("Uri" + uri.toString());
+        Path path = provider.getPath(uri);
+        System.out.printf("Path: %s%n", path);
+        System.out.println();
     }
 
     private static void testPathResolution(FileSystemProvider provider) throws Exception {
@@ -41,25 +36,15 @@ public class FileSystemTest {
         System.out.println("Testing path resolution...");
         System.out.println("Virtual path: " + uri);
         System.out.println("Resolved after provider getpath: " + path);
-        // System.out.println("file system: of "+uri + provider.getFileSystem(uri));
-
-        // System.out.println("Virtual path: " + uri);
-        // System.out.println("Real path: " + path);
-        // System.out.println("File exists: " + Files.exists(path));
     }
 
-    private static void testFileOperations() throws Exception {
-        System.out.println("Testing file operations...");
-        Path virtualPath = Paths.get(URI.create("web-bala:///src/test.bala"));
-        System.out.println("Virtual path in testFileOperations: " + virtualPath);
-
-        // Read content
-        String content = Files.readString(virtualPath);
-        System.out.println("File content: " + content);
-
-        // Write new content
-        Files.writeString(virtualPath, "new content");
-        System.out.println("File updated successfully");
+    private static void testFileOperations(FileSystemProvider provider) throws Exception {
+        URI uri = URI.create("web-bala:///mydir/newdir");
+        System.out.printf("uri", uri.toString());
+        Path dir = provider.getPath(uri);
+        System.out.printf("path", dir.toString());
+        Files.createDirectories(dir);
+        System.out.println("Directory created: " + dir);
     }
 
     private static void testWebBalaUriToFileCreation(FileSystemProvider provider) throws Exception {
@@ -140,4 +125,70 @@ public class FileSystemTest {
         }
     }
 
+    private static void testCreateFileWithContent(FileSystemProvider provider) throws Exception {
+        // 1. Define a virtual URI for the file
+        URI fileUri = URI.create("web-bala:///mydir/sample.txt");
+        Path filePath = provider.getPath(fileUri);
+
+        // 2. Ensure parent directory exists
+        Path parentDir = filePath.getParent();
+        if (parentDir != null) {
+            Files.createDirectories(parentDir);
+        }
+
+        // 3. Write content to the file
+        String content = "Hello from the virtual file system!";
+        Files.writeString(filePath, content);
+
+        // 4. Read back and print the content
+        String readContent = Files.readString(filePath);
+        System.out.println("File created at: " + filePath);
+        System.out.println("File content: " + readContent);
+    }
+
+    private static void testReadFileWithVirtualUri(FileSystemProvider provider) throws Exception {
+        // 1. Define the virtual URI for the file
+        URI fileUri = URI.create("web-bala:///mydir/sample.txt");
+        Path filePath = provider.getPath(fileUri);
+
+        // 2. Read the content
+        String content = Files.readString(filePath);
+        System.out.println("Read from virtual URI: " + filePath);
+        System.out.println("File content: " + content);
+    }
+
+    private static void testWebBalaPathOperations(FileSystemProvider provider) throws Exception {
+        URI uri = URI.create("web-bala:///mydir/sample.txt");
+        FileSystem fs = provider.getFileSystem(URI.create("web-bala:///"));
+        Path path = fs.getPath("/mydir/sample.txt");
+
+        // Read file content (assumes file exists)
+        if (Files.exists(path)) {
+            String content = Files.readString(path);
+            System.out.println("File content: " + content);
+        } else {
+            System.out.println("File does not exist: " + path);
+        }
+
+        // Path operations
+        Path parent = path.getParent(); // /mydir
+        Path fileName = path.getFileName(); // sample.txt
+        boolean isAbs = path.isAbsolute(); // true
+        Path root = path.getRoot(); // /
+        int count = path.getNameCount(); // 2
+        Path sub = path.subpath(0, 1); // mydir
+        Path resolved = parent.resolve("other.txt"); // /mydir/other.txt
+        boolean ends = path.endsWith("sample.txt"); // true
+        URI fileUri = path.toUri(); // web-bala:///mydir/sample.txt
+
+        System.out.println("parent: " + parent);
+        System.out.println("fileName: " + fileName);
+        System.out.println("isAbsolute: " + isAbs);
+        System.out.println("root: " + root);
+        System.out.println("nameCount: " + count);
+        System.out.println("subpath(0,1): " + sub);
+        System.out.println("resolved: " + resolved);
+        System.out.println("endsWith('sample.txt'): " + ends);
+        System.out.println("toUri: " + fileUri);
+    }
 }
